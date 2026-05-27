@@ -12,6 +12,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
+	if err := cfg.ValidateJira(); err != nil {
+		log.Fatalf("jira config: %v", err)
+	}
 
 	application, err := app.New(cfg)
 	if err != nil {

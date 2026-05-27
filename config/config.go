@@ -49,7 +49,7 @@ func Load() (*Config, error) {
 		TaskTrackerProvider:  getenv("TASK_TRACKER_PROVIDER", "mock"),
 		JiraBaseURL:          os.Getenv("JIRA_BASE_URL"),
 		JiraEmail:            os.Getenv("JIRA_EMAIL"),
-		JiraAPIToken:         os.Getenv("JIRA_API_TOKEN"),
+		JiraAPIToken:         firstEnv("JIRA_API_TOKEN", "JIRA_API"),
 		JiraSprintID:         os.Getenv("JIRA_SPRINT_ID"),
 		JiraProjectKey:       os.Getenv("JIRA_PROJECT_KEY"),
 		LinearAPIKey:         os.Getenv("LINEAR_API_KEY"),
@@ -75,6 +75,38 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func (c *Config) JiraEnabled() bool {
+	return c.TaskTrackerProvider == "jira"
+}
+
+func (c *Config) ValidateJira() error {
+	if !c.JiraEnabled() {
+		return nil
+	}
+	if c.JiraBaseURL == "" {
+		return fmt.Errorf("JIRA_BASE_URL is required")
+	}
+	if c.JiraEmail == "" {
+		return fmt.Errorf("JIRA_EMAIL is required (email аккаунта Atlassian)")
+	}
+	if c.JiraAPIToken == "" {
+		return fmt.Errorf("JIRA_API_TOKEN or JIRA_API is required")
+	}
+	if c.JiraSprintID == "" && c.JiraProjectKey == "" {
+		return fmt.Errorf("set JIRA_SPRINT_ID or JIRA_PROJECT_KEY")
+	}
+	return nil
 }
 
 func getenvInt(key string, fallback int) int {

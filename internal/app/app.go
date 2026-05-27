@@ -12,6 +12,7 @@ import (
 	"github.com/predicta/predicta/config"
 	deliveryhttp "github.com/predicta/predicta/internal/delivery/http"
 	"github.com/predicta/predicta/internal/delivery/http/handler"
+	"github.com/predicta/predicta/internal/infrastructure/jira"
 	"github.com/predicta/predicta/internal/infrastructure/telegram"
 )
 
@@ -28,7 +29,13 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	h := handler.New(deps.Project, deps.Team, deps.Employee, deps.Task)
-	router := deliveryhttp.NewRouter(h)
+	var jiraSetup *handler.JiraIntegration
+	if cfg.JiraEnabled() {
+		if jc, ok := deps.Tracker.(*jira.Client); ok {
+			jiraSetup = handler.NewJiraIntegration(jc)
+		}
+	}
+	router := deliveryhttp.NewRouter(h, jiraSetup)
 
 	app := &App{
 		cfg: cfg,

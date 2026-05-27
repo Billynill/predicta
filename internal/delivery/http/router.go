@@ -5,7 +5,7 @@ import (
 	"github.com/predicta/predicta/internal/delivery/http/handler"
 )
 
-func NewRouter(h *handler.Handler) *gin.Engine {
+func NewRouter(h *handler.Handler, jiraSetup *handler.JiraIntegration) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger())
 
@@ -14,5 +14,8 @@ func NewRouter(h *handler.Handler) *gin.Engine {
 	})
 
 	h.Register(r)
+	if jiraSetup != nil {
+		jiraSetup.Register(r)
+	}
 	return r
 }

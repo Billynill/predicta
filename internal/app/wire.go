@@ -66,23 +66,34 @@ func buildDeps(cfg *config.Config) (*Deps, error) {
 }
 
 func buildTaskTracker(cfg *config.Config, teamID string, members []entity.Employee) (port.TaskTracker, error) {
-	if cfg.DemoMode || cfg.TaskTrackerProvider == "mock" {
-		log.Printf("task tracker: mock demo")
-		return mock.NewTracker(teamID, cfg.SprintDaysRemaining, members), nil
+	provider := cfg.TaskTrackerProvider
+	if provider == "" {
+		if cfg.DemoMode {
+			provider = "mock"
+		} else {
+			provider = "jira"
+		}
 	}
 
-	switch cfg.TaskTrackerProvider {
+	switch provider {
+	case "mock":
+		log.Printf("task tracker: mock demo")
+		return mock.NewTracker(teamID, cfg.SprintDaysRemaining, members), nil
 	case "jira":
-		log.Printf("task tracker: jira")
+		if err := cfg.ValidateJira(); err != nil {
+			return nil, err
+		}
+		log.Printf("task tracker: jira (sprint=%s project=%s)", cfg.JiraSprintID, cfg.JiraProjectKey)
 		return jira.NewClient(
 			cfg.JiraBaseURL,
 			cfg.JiraEmail,
 			cfg.JiraAPIToken,
 			cfg.JiraSprintID,
 			cfg.JiraProjectKey,
+			cfg.SprintDaysRemaining,
 		), nil
 	default:
-		return nil, fmt.Errorf("unsupported task tracker: %s", cfg.TaskTrackerProvider)
+		return nil, fmt.Errorf("unsupported task tracker: %s", provider)
 	}
 }
 
