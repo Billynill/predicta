@@ -28,6 +28,7 @@ type Config struct {
 	TelegramBotToken string
 	TelegramChatID   string
 
+	GigaChatAuthKey      string // Base64 Authorization key from Sber Studio
 	GigaChatClientID     string
 	GigaChatClientSecret string
 	GigaChatScope        string
@@ -53,6 +54,7 @@ func Load() (*Config, error) {
 		LinearSprintID:       os.Getenv("LINEAR_SPRINT_ID"),
 		TelegramBotToken:     os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramChatID:       os.Getenv("TELEGRAM_CHAT_ID"),
+		GigaChatAuthKey:      os.Getenv("GIGACHAT_AUTH_KEY"),
 		GigaChatClientID:     os.Getenv("GIGACHAT_CLIENT_ID"),
 		GigaChatClientSecret: os.Getenv("GIGACHAT_CLIENT_SECRET"),
 		GigaChatScope:        getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS"),

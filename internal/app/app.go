@@ -52,11 +52,13 @@ func New(cfg *config.Config) (*App, error) {
 }
 
 func buildAdapters(cfg *config.Config) (port.TaskTracker, port.EmployeeStore, port.ChatStore, port.AIAnalyzer, error) {
+	ai := buildAI(cfg)
+
 	if cfg.DemoMode || cfg.TaskTrackerProvider == "mock" {
 		return mock.NewTracker(cfg.SprintDaysRemaining),
 			mock.NewEmployeeStore(),
 			mock.NewChatStore(),
-			mock.NewAIAnalyzer(),
+			ai,
 			nil
 	}
 
@@ -71,9 +73,15 @@ func buildAdapters(cfg *config.Config) (port.TaskTracker, port.EmployeeStore, po
 	// TODO: wire postgres store when POSTGRES_DSN is set
 	employees := mock.NewEmployeeStore()
 	chats := mock.NewChatStore()
-	ai := gigachat.NewClient(cfg.GigaChatClientID, cfg.GigaChatClientSecret, cfg.GigaChatScope)
 
 	return tracker, employees, chats, ai, nil
+}
+
+func buildAI(cfg *config.Config) port.AIAnalyzer {
+	if cfg.GigaChatAuthKey != "" {
+		return gigachat.NewClient(cfg.GigaChatAuthKey, cfg.GigaChatScope)
+	}
+	return mock.NewAIAnalyzer()
 }
 
 func (a *App) Run() error {
