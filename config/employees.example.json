@@ -1,0 +1,19 @@
+{
+  "team_id": "backend",
+  "members": [
+    {
+      "id": "712020:xxxxxxxx",
+      "external_id": "712020:xxxxxxxx",
+      "name": "Иван Иванов",
+      "role": "Backend",
+      "telegram_nick": "ivan_dev"
+    },
+    {
+      "id": "712020:yyyyyyyy",
+      "external_id": "712020:yyyyyyyy",
+      "name": "Мария Петрова",
+      "role": "Backend",
+      "telegram_nick": "maria_dev"
+    }
+  ]
+}

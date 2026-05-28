@@ -1,0 +1,19 @@
+{
+  "team_id": "backend",
+  "members": [
+    {
+      "id": "emp-oleg",
+      "external_id": "JIRA_ACCOUNT_ID_OLEG",
+      "name": "Олег",
+      "role": "Backend",
+      "telegram_nick": "oleg_dev"
+    },
+    {
+      "id": "emp-pavel",
+      "external_id": "JIRA_ACCOUNT_ID_PAVEL",
+      "name": "Павел",
+      "role": "Backend",
+      "telegram_nick": "RustamAvezov"
+    }
+  ]
+}

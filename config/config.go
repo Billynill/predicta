@@ -35,6 +35,9 @@ type Config struct {
 
 	SprintDaysRemaining int
 	DemoMode            bool
+
+	EmployeesFile string
+	TeamID        string
 }
 
 func Load() (*Config, error) {
@@ -60,6 +63,8 @@ func Load() (*Config, error) {
 		GigaChatScope:        getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS"),
 		SprintDaysRemaining:  getenvInt("SPRINT_DAYS_REMAINING", 3),
 		DemoMode:             getenvBool("DEMO_MODE", true),
+		EmployeesFile:        getenv("EMPLOYEES_FILE", "config/employees.json"),
+		TeamID:               getenv("TEAM_ID", "backend"),
 	}
 
 	return cfg, nil

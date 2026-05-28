@@ -4,23 +4,22 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/predicta/predicta/internal/adapter/http/dto"
-	"github.com/predicta/predicta/internal/domain/entity"
+	"github.com/predicta/predicta/internal/delivery/http/dto"
 	"github.com/predicta/predicta/internal/usecase"
 )
 
 type Handler struct {
-	project  *usecase.ProjectService
-	team     *usecase.TeamService
-	employee *usecase.EmployeeService
-	task     *usecase.TaskService
+	project  usecase.ProjectStatusGetter
+	team     usecase.TeamVelocityGetter
+	employee usecase.EmployeeAnalyticsGetter
+	task     usecase.TaskReassigner
 }
 
 func New(
-	project *usecase.ProjectService,
-	team *usecase.TeamService,
-	employee *usecase.EmployeeService,
-	task *usecase.TaskService,
+	project usecase.ProjectStatusGetter,
+	team usecase.TeamVelocityGetter,
+	employee usecase.EmployeeAnalyticsGetter,
+	task usecase.TaskReassigner,
 ) *Handler {
 	return &Handler{
 		project:  project,
@@ -116,16 +115,4 @@ func (h *Handler) reassignTask(c *gin.Context) {
 		Message:       result.Message,
 		ProjectStatus: mapProjectStatus(result.ProjectStatus),
 	})
-}
-
-func mapProjectStatus(s entity.ProjectStatus) dto.ProjectStatusResponse {
-	return dto.ProjectStatusResponse{
-		SprintName:    s.SprintName,
-		CompletionPct: s.CompletionPct,
-		DelayDays:     s.DelayDays,
-		IsAtRisk:      s.IsAtRisk,
-		RiskMessage:   s.RiskMessage,
-		TrackName:     s.TrackName,
-		DaysRemaining: s.DaysRemaining,
-	}
 }

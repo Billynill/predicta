@@ -17,12 +17,5 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_chat_messages_employee_sent_at
     ON chat_messages (employee_id, sent_at DESC);
 
-INSERT INTO employees (id, external_id, team_id, name, role, telegram_nick) VALUES
-    ('emp-oleg',  'oleg-ext',  'backend', 'Олег',  'Backend', 'oleg_dev'),
-    ('emp-pavel', 'pavel-ext', 'backend', 'Павел', 'Backend', 'pavel_dev')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO chat_messages (employee_id, message_text, sent_at) VALUES
-    ('emp-pavel', 'Вчера 23:40: Опять сижу с этой базой данных, голова уже не варит', NOW() - INTERVAL '10 hours'),
-    ('emp-pavel', 'Сегодня 09:15: Ребят, я дико устал, всю ночь не спал из-за семейных проблем, но постараюсь доползти до компа', NOW() - INTERVAL '2 hours')
-ON CONFLICT DO NOTHING;
+-- Roster: config/employees.json (не сиды в SQL).
+-- При POSTGRES_DSN чат пишется в chat_messages; employees синхронизируйте отдельно или через тот же JSON.

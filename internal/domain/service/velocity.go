@@ -61,7 +61,7 @@ func (e *VelocityEngine) BuildTeamVelocity(
 	result := make([]entity.EmployeeVelocity, 0, len(employees))
 
 	for _, emp := range employees {
-		done, total := countByAssignee(tasks, emp.ID)
+		done, total := countByAssignee(tasks, emp)
 		health := entity.VelocityHealthGood
 		if total > 0 && done < total/2 {
 			health = entity.VelocityHealthBad
@@ -85,12 +85,12 @@ func (e *VelocityEngine) BuildEmployeeForecast(
 ) entity.EmployeeForecast {
 	remaining := 0
 	for _, t := range tasks {
-		if t.AssigneeID == employee.ID && t.Status != entity.TaskStatusDone {
+		if entity.AssigneeMatches(t.AssigneeID, employee) && t.Status != entity.TaskStatusDone {
 			remaining++
 		}
 	}
 
-	velocity := e.employeeVelocityPerDay(tasks, employee.ID)
+	velocity := e.employeeVelocityPerDay(tasks, employee)
 	daysToComplete := sprintDaysLeft
 	if velocity > 0 {
 		daysToComplete = int(math.Ceil(float64(remaining) / velocity))
@@ -122,8 +122,8 @@ func (e *VelocityEngine) teamAvgVelocityPerDay(tasks []entity.Task, sprintDaysLe
 	return float64(done) / float64(sprintDaysLeft)
 }
 
-func (e *VelocityEngine) employeeVelocityPerDay(tasks []entity.Task, employeeID string) float64 {
-	done, _ := countByAssignee(tasks, employeeID)
+func (e *VelocityEngine) employeeVelocityPerDay(tasks []entity.Task, employee entity.Employee) float64 {
+	done, _ := countByAssignee(tasks, employee)
 	if done == 0 {
 		return defaultVelocityPerDay * 0.2 // консервативный прогноз при нулевом темпе
 	}
@@ -150,9 +150,9 @@ func countDone(tasks []entity.Task) int {
 	return n
 }
 
-func countByAssignee(tasks []entity.Task, assigneeID string) (done, total int) {
+func countByAssignee(tasks []entity.Task, emp entity.Employee) (done, total int) {
 	for _, t := range tasks {
-		if t.AssigneeID != assigneeID {
+		if !entity.AssigneeMatches(t.AssigneeID, emp) {
 			continue
 		}
 		total++

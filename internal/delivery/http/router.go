@@ -2,7 +2,7 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/predicta/predicta/internal/adapter/http/handler"
+	"github.com/predicta/predicta/internal/delivery/http/handler"
 )
 
 func NewRouter(h *handler.Handler) *gin.Engine {

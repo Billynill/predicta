@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,77 +10,50 @@ import (
 	"time"
 
 	"github.com/predicta/predicta/config"
-	httpadapter "github.com/predicta/predicta/internal/adapter/http"
-	"github.com/predicta/predicta/internal/adapter/http/handler"
-	"github.com/predicta/predicta/internal/adapter/gigachat"
-	"github.com/predicta/predicta/internal/adapter/jira"
-	"github.com/predicta/predicta/internal/adapter/mock"
-	"github.com/predicta/predicta/internal/domain/port"
-	"github.com/predicta/predicta/internal/domain/service"
-	"github.com/predicta/predicta/internal/usecase"
+	deliveryhttp "github.com/predicta/predicta/internal/delivery/http"
+	"github.com/predicta/predicta/internal/delivery/http/handler"
+	"github.com/predicta/predicta/internal/infrastructure/telegram"
 )
 
 type App struct {
-	cfg    *config.Config
-	server *http.Server
+	cfg       *config.Config
+	server    *http.Server
+	botCancel context.CancelFunc
 }
 
 func New(cfg *config.Config) (*App, error) {
-	tracker, employees, chats, ai, err := buildAdapters(cfg)
+	deps, err := buildDeps(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	velocity := service.NewVelocityEngine()
-	projectSvc := usecase.NewProjectService(tracker, velocity, mock.TeamBackend, "бэкенда")
-	teamSvc := usecase.NewTeamService(tracker, employees, velocity, mock.TeamBackend)
-	employeeSvc := usecase.NewEmployeeService(tracker, employees, chats, ai, velocity, mock.TeamBackend)
-	taskSvc := usecase.NewTaskService(tracker, employees, velocity, projectSvc, mock.TeamBackend, "бэкенда")
+	h := handler.New(deps.Project, deps.Team, deps.Employee, deps.Task)
+	router := deliveryhttp.NewRouter(h)
 
-	h := handler.New(projectSvc, teamSvc, employeeSvc, taskSvc)
-	router := httpadapter.NewRouter(h)
-
-	return &App{
+	app := &App{
 		cfg: cfg,
 		server: &http.Server{
 			Addr:              cfg.Addr(),
 			Handler:           router,
 			ReadHeaderTimeout: 5 * time.Second,
 		},
-	}, nil
-}
-
-func buildAdapters(cfg *config.Config) (port.TaskTracker, port.EmployeeStore, port.ChatStore, port.AIAnalyzer, error) {
-	ai := buildAI(cfg)
-
-	if cfg.DemoMode || cfg.TaskTrackerProvider == "mock" {
-		return mock.NewTracker(cfg.SprintDaysRemaining),
-			mock.NewEmployeeStore(),
-			mock.NewChatStore(),
-			ai,
-			nil
 	}
 
-	var tracker port.TaskTracker
-	switch cfg.TaskTrackerProvider {
-	case "jira":
-		tracker = jira.NewClient(cfg.JiraBaseURL, cfg.JiraEmail, cfg.JiraAPIToken, cfg.JiraSprintID, cfg.JiraProjectKey)
-	default:
-		return nil, nil, nil, nil, fmt.Errorf("unsupported task tracker: %s", cfg.TaskTrackerProvider)
+	if cfg.TelegramBotToken != "" {
+		log.Printf("telegram bot starting (chat filter: %q)", cfg.TelegramChatID)
+		bot := telegram.NewBot(cfg.TelegramBotToken, cfg.TelegramChatID, deps.Employees, deps.Chats)
+		ctx, cancel := context.WithCancel(context.Background())
+		app.botCancel = cancel
+		go func() {
+			if err := bot.Run(ctx); err != nil && err != context.Canceled {
+				log.Printf("telegram bot stopped: %v", err)
+			}
+		}()
+	} else {
+		log.Printf("telegram bot disabled: add TELEGRAM_BOT_TOKEN to .env")
 	}
 
-	// TODO: wire postgres store when POSTGRES_DSN is set
-	employees := mock.NewEmployeeStore()
-	chats := mock.NewChatStore()
-
-	return tracker, employees, chats, ai, nil
-}
-
-func buildAI(cfg *config.Config) port.AIAnalyzer {
-	if cfg.GigaChatAuthKey != "" {
-		return gigachat.NewClient(cfg.GigaChatAuthKey, cfg.GigaChatScope)
-	}
-	return mock.NewAIAnalyzer()
+	return app, nil
 }
 
 func (a *App) Run() error {
@@ -95,6 +67,10 @@ func (a *App) Run() error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
+
+	if a.botCancel != nil {
+		a.botCancel()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
