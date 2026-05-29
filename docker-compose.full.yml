@@ -1,0 +1,41 @@
+# Полный стек с PostgreSQL (нужен sync employees в БД перед чатом)
+services:
+  api:
+    build: .
+    container_name: predicta-api
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      HTTP_PORT: "8080"
+      OPENAPI_PATH: /app/api/openapi.yaml
+      EMPLOYEES_FILE: /app/config/employees.json
+      POSTGRES_DSN: postgres://predicta:predicta@postgres:5432/predicta?sslmode=disable
+    volumes:
+      - ./config/employees.json:/app/config/employees.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: predicta-postgres
+    environment:
+      POSTGRES_USER: predicta
+      POSTGRES_PASSWORD: predicta
+      POSTGRES_DB: predicta
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U predicta -d predicta"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

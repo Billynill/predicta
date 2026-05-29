@@ -2,18 +2,32 @@
   "team_id": "backend",
   "members": [
     {
-      "id": "emp-oleg",
-      "external_id": "JIRA_ACCOUNT_ID_OLEG",
-      "name": "Олег",
-      "role": "Backend",
-      "telegram_nick": "oleg_dev"
+      "id": "712020:f82e4007-6a4d-447c-8567-153896529978",
+      "external_id": "712020:f82e4007-6a4d-447c-8567-153896529978",
+      "name": "Taras",
+      "role": "Developer",
+      "telegram_nick": "TarTkach"
     },
     {
-      "id": "emp-pavel",
-      "external_id": "JIRA_ACCOUNT_ID_PAVEL",
-      "name": "Павел",
-      "role": "Backend",
+      "id": "712020:ec2b01dc-3023-46c8-b8b0-b55fa31c1a8c",
+      "external_id": "712020:ec2b01dc-3023-46c8-b8b0-b55fa31c1a8c",
+      "name": "Attacking",
+      "role": "Developer",
+      "telegram_nick": "YokiSun"
+    },
+    {
+      "id": "712020:bf8d95b2-ee76-4144-882d-5c0d80ff697a",
+      "external_id": "712020:bf8d95b2-ee76-4144-882d-5c0d80ff697a",
+      "name": "Medved",
+      "role": "Developer",
       "telegram_nick": "RustamAvezov"
+    },
+    {
+      "id": "712020:7fd338b2-239a-47bd-ab46-d8c2f63e63c5",
+      "external_id": "712020:7fd338b2-239a-47bd-ab46-d8c2f63e63c5",
+      "name": "Heavenfiend",
+      "role": "Developer",
+      "telegram_nick": "Heavenfiend"
     }
   ]
 }

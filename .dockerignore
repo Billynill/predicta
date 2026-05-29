@@ -1,5 +1,6 @@
+.git
 .env
 *.exe
 bin/
 dist/
-data/manager.json
+**/.DS_Store

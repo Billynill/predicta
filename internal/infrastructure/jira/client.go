@@ -127,36 +127,26 @@ func (c *Client) ReassignTask(ctx context.Context, taskExternalID, newAssigneeEx
 
 // ListAssignableUsers — assignable users в проекте (для employees.json).
 func (c *Client) ListAssignableUsers(ctx context.Context, projectKey string) ([]AssignableUser, error) {
-	key := projectKey
-	if key == "" {
-		key = c.projectKey
-	}
-	if key == "" {
-		return nil, fmt.Errorf("jira: project key is required")
+	keys := c.candidateProjectKeys(ctx, projectKey)
+	if len(keys) == 0 {
+		return nil, errNoProjectKey
 	}
 
-	q := url.Values{}
-	q.Set("project", key)
-	q.Set("maxResults", "100")
-
-	resp, err := c.doRequest(ctx, http.MethodGet, "/rest/api/3/user/assignable/search", q, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var raw []jiraUser
-	if err := c.decodeJSON(resp, &raw); err != nil {
-		return nil, err
-	}
-
-	out := make([]AssignableUser, 0, len(raw))
-	for _, u := range raw {
-		if u.AccountID == "" {
-			continue
+	var lastErr error
+	for _, key := range keys {
+		users, err := c.listAssignableUsersForProject(ctx, key)
+		if err == nil {
+			return users, nil
 		}
-		out = append(out, mapAssignable(u))
+		lastErr = err
+		if !isUnknownProjectErr(err) {
+			return nil, err
+		}
 	}
-	return out, nil
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, errNoProjectKey
 }
 
 // GetSprintInfo — метаданные спринта для отладки/настройки.

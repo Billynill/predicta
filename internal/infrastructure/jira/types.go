@@ -50,9 +50,10 @@ type issueStatus struct {
 }
 
 type jiraUser struct {
-	AccountID   string `json:"accountId"`
-	DisplayName string `json:"displayName"`
-	EmailAddress string `json:"emailAddress"`
+	AccountID    string            `json:"accountId"`
+	DisplayName  string            `json:"displayName"`
+	EmailAddress string            `json:"emailAddress"`
+	AvatarURLs   map[string]string `json:"avatarUrls"`
 }
 
 type usersSearchResponse struct {
@@ -67,6 +68,14 @@ type AssignableUser struct {
 	AccountID   string `json:"account_id"`
 	DisplayName string `json:"display_name"`
 	Email       string `json:"email,omitempty"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
+}
+
+// ProjectSummary — проект Jira (для выбора JIRA_PROJECT_KEY).
+type ProjectSummary struct {
+	ID   string `json:"id"`
+	Key  string `json:"key"`
+	Name string `json:"name"`
 }
 
 func parseJiraTime(s string) (time.Time, error) {

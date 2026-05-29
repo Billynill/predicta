@@ -102,6 +102,7 @@ func mapAssignable(u jiraUser) AssignableUser {
 		AccountID:   u.AccountID,
 		DisplayName: u.DisplayName,
 		Email:       u.EmailAddress,
+		AvatarURL:   pickAvatarURL(u.AvatarURLs),
 	}
 }
 

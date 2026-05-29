@@ -1,0 +1,20 @@
+services:
+  api:
+    build: .
+    container_name: predicta-api
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      HTTP_PORT: "8080"
+      OPENAPI_PATH: /app/api/openapi.yaml
+      EMPLOYEES_FILE: /app/config/employees.json
+      MANAGER_FILE: /app/data/manager.json
+      # Чат in-memory внутри контейнера; для Postgres см. docker-compose.full.yml
+      POSTGRES_DSN: ""
+    volumes:
+      - ./config/employees.json:/app/config/employees.json:ro
+      - ./api/openapi.yaml:/app/api/openapi.yaml:ro
+      - ./data:/app/data
+    restart: unless-stopped

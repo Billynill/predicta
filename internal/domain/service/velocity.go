@@ -58,20 +58,44 @@ func (e *VelocityEngine) BuildTeamVelocity(
 	employees []entity.Employee,
 	tasks []entity.Task,
 ) []entity.EmployeeVelocity {
-	result := make([]entity.EmployeeVelocity, 0, len(employees))
+	type load struct {
+		emp       entity.Employee
+		done      int
+		total     int
+		remaining int
+	}
+
+	loads := make([]load, 0, len(employees))
+	totalRemaining := 0
+	maxRemaining := 0
 
 	for _, emp := range employees {
 		done, total := countByAssignee(tasks, emp)
-		health := entity.VelocityHealthGood
-		if total > 0 && done < total/2 {
-			health = entity.VelocityHealthBad
+		remaining := total - done
+		totalRemaining += remaining
+		if remaining > maxRemaining {
+			maxRemaining = remaining
 		}
+		loads = append(loads, load{emp: emp, done: done, total: total, remaining: remaining})
+	}
 
+	avgRemaining := 0.0
+	if len(loads) > 0 {
+		avgRemaining = float64(totalRemaining) / float64(len(loads))
+	}
+
+	metrics := TeamLoadMetrics{
+		MaxRemaining: maxRemaining,
+		AvgRemaining: avgRemaining,
+	}
+
+	result := make([]entity.EmployeeVelocity, 0, len(loads))
+	for _, l := range loads {
 		result = append(result, entity.EmployeeVelocity{
-			Employee:   emp,
-			DoneCount:  done,
-			TotalCount: total,
-			Health:     health,
+			Employee:   l.emp,
+			DoneCount:  l.done,
+			TotalCount: l.total,
+			Health:     ClassifyWorkloadHealth(l.remaining, metrics),
 		})
 	}
 

@@ -12,7 +12,6 @@ import (
 	"github.com/predicta/predicta/config"
 	deliveryhttp "github.com/predicta/predicta/internal/delivery/http"
 	"github.com/predicta/predicta/internal/delivery/http/handler"
-	"github.com/predicta/predicta/internal/infrastructure/jira"
 	"github.com/predicta/predicta/internal/infrastructure/telegram"
 )
 
@@ -28,14 +27,27 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	h := handler.New(deps.Project, deps.Team, deps.Employee, deps.Task)
-	var jiraSetup *handler.JiraIntegration
-	if cfg.JiraEnabled() {
-		if jc, ok := deps.Tracker.(*jira.Client); ok {
-			jiraSetup = handler.NewJiraIntegration(jc)
-		}
+	if cfg.JWTSecret == "predicta-dev-secret-change-me" {
+		log.Printf("auth: using default JWT_SECRET — set JWT_SECRET in production")
 	}
-	router := deliveryhttp.NewRouter(h, jiraSetup)
+
+	apiHandler := handler.New(
+		deps.Project,
+		deps.Team,
+		deps.TeamAI,
+		deps.Employee,
+		deps.Profile,
+		deps.Task,
+		deps.Creator,
+	)
+	authHandler := handler.NewAuthHandler(deps.Auth, deps.Auth, deps.Auth)
+	router := deliveryhttp.NewRouter(
+		apiHandler,
+		authHandler,
+		buildJiraIntegration(cfg, deps.JiraSetup),
+		cfg.OpenAPIPath,
+		deps.Tokens,
+	)
 
 	app := &App{
 		cfg: cfg,
@@ -65,7 +77,10 @@ func New(cfg *config.Config) (*App, error) {
 
 func (a *App) Run() error {
 	go func() {
-		log.Printf("predicta api listening on %s (demo=%v)", a.cfg.Addr(), a.cfg.DemoMode)
+		log.Printf("predicta api listening on %s (jira=%s)", a.cfg.Addr(), a.cfg.JiraProjectKey)
+		if a.cfg.OpenAPIPath != "" {
+			log.Printf("swagger ui: http://localhost%s/docs", a.cfg.Addr())
+		}
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server error: %v", err)
 		}

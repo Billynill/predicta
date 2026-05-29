@@ -13,27 +13,115 @@ type TaskReassigner interface {
 	Reassign(ctx context.Context, taskID, newExecutorID string) (entity.ReassignResult, error)
 }
 
+// TaskCreator — создание задачи с проверкой загрузки через AI.
+type TaskCreator interface {
+	Create(ctx context.Context, cmd CreateTaskCommand) (entity.CreateTaskResult, error)
+}
+
+type CreateTaskCommand struct {
+	Title       string
+	Description string
+	AssigneeID  string
+	Force       bool
+}
+
 type TaskService struct {
-	tracker    port.TaskTracker
-	employees  port.EmployeeRepository
-	velocity   port.VelocityCalculator
-	teamID     string
-	track      string
+	tracker   port.TaskTracker
+	employees port.EmployeeRepository
+	chats     port.ChatRepository
+	ai        port.AIAnalyzer
+	velocity  port.VelocityCalculator
+	teamID    string
+	track     string
 }
 
 func NewTaskService(
 	tracker port.TaskTracker,
 	employees port.EmployeeRepository,
+	chats port.ChatRepository,
+	ai port.AIAnalyzer,
 	velocity port.VelocityCalculator,
 	teamID, track string,
 ) *TaskService {
 	return &TaskService{
 		tracker:   tracker,
 		employees: employees,
+		chats:     chats,
+		ai:        ai,
 		velocity:  velocity,
 		teamID:    resolveTeamID(teamID),
 		track:     resolveTrack(track),
 	}
+}
+
+func (s *TaskService) Create(ctx context.Context, cmd CreateTaskCommand) (entity.CreateTaskResult, error) {
+	assignee, err := s.employees.GetByID(ctx, cmd.AssigneeID)
+	if err != nil {
+		return entity.CreateTaskResult{}, fmt.Errorf("get assignee: %w", err)
+	}
+
+	sc, err := loadSprintContext(ctx, s.tracker, s.teamID)
+	if err != nil {
+		return entity.CreateTaskResult{}, err
+	}
+
+	employees, err := s.employees.ListByTeam(ctx, s.teamID)
+	if err != nil {
+		return entity.CreateTaskResult{}, err
+	}
+
+	velocities := s.velocity.BuildTeamVelocity(employees, sc.tasks)
+	decision := evaluateAssigneeLoad(*assignee, velocities)
+
+	members, err := buildTeamMemberInputs(ctx, employees, sc.tasks, s.chats)
+	if err != nil {
+		return entity.CreateTaskResult{}, err
+	}
+
+	requestedMember := teamMemberForEmployee(*assignee, members)
+	suggestedMember := teamMemberForEmployee(decision.Suggested, members)
+
+	aiInsight, err := s.ai.RecommendTaskAssignee(ctx, port.TaskAssigneeRecommendationInput{
+		TaskTitle:         cmd.Title,
+		TaskDescription:   cmd.Description,
+		SprintName:        sc.sprint.Name,
+		DaysLeft:          sc.sprint.DaysRemaining,
+		Approved:          decision.Approved,
+		RequestedAssignee: requestedMember,
+		SuggestedAssignee: suggestedMember,
+		TeamMembers:       members,
+	})
+	if err != nil {
+		return entity.CreateTaskResult{}, fmt.Errorf("ai recommend assignee: %w", err)
+	}
+
+	result := entity.CreateTaskResult{
+		Approved:              decision.Approved,
+		AssigneeID:            assignee.ExternalID,
+		AssigneeName:          assignee.Name,
+		SuggestedAssigneeID:   decision.Suggested.ExternalID,
+		SuggestedAssigneeName: decision.Suggested.Name,
+		AIInsight:             aiInsight,
+	}
+
+	if !decision.Approved && !cmd.Force {
+		return result, nil
+	}
+
+	created, err := s.tracker.CreateTask(ctx, port.CreateTaskInput{
+		Title:       cmd.Title,
+		Description: cmd.Description,
+		AssigneeID:  assignee.ExternalID,
+		SprintID:    sc.sprint.ID,
+	})
+	if err != nil {
+		return entity.CreateTaskResult{}, fmt.Errorf("create task in tracker: %w", err)
+	}
+
+	result.Created = true
+	result.TaskID = created.TaskID
+	result.TaskTitle = created.Title
+	return result, nil
 }
 
 func (s *TaskService) Reassign(ctx context.Context, taskID, newExecutorID string) (entity.ReassignResult, error) {

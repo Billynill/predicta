@@ -1,0 +1,649 @@
+openapi: 3.0.3
+info:
+  title: Predicta API
+  description: |
+    Backend для мобильного приложения Predicta (хакатон).
+    Экраны: дашборд спринта → velocity команды → карточка сотрудника + AI → reassign задачи.
+  version: 1.1.1
+  contact:
+    name: Predicta Team
+
+servers:
+  - url: /
+    description: Current host (localhost или ngrok)
+
+tags:
+  - name: System
+  - name: Auth
+    description: Регистрация и вход начальника (один аккаунт)
+  - name: Predicta
+    description: Основные ручки для Kotlin-приложения
+  - name: Jira
+    description: Настройка и отладка интеграции с Jira
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация начальника (один раз)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterManagerRequest"
+      responses:
+        "201":
+          description: Зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Начальник уже зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход начальника
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: JWT токен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Профиль начальника
+      description: Данные регистрации + avatar и Jira из .env + subordinates_count из employees.json.
+      responses:
+        "200":
+          description: Профиль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagerProfile"
+        "401":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/project/status:
+    get:
+      tags: [Predicta]
+      summary: Экран 1 — здоровье проекта / спринта
+      description: Процент выполнения, риск задержки, сообщение для дашборда и AI-совет что делать.
+      responses:
+        "200":
+          description: Статус спринта
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectStatus"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/team/velocity:
+    get:
+      tags: [Predicta]
+      summary: Экран 2 — velocity команды
+      description: Список сотрудников с done/total и health (good/normal/bad).
+      responses:
+        "200":
+          description: Velocity по сотрудникам
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeVelocity"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/employee/{id}:
+    get:
+      tags: [Predicta]
+      summary: Профиль сотрудника по account_id
+      description: |
+        Данные сотрудника из roster + задачи в текущем спринте + загрузка + AI-вердикт (3–4 предложения с советами).
+        `id` — Jira account_id из config/employees.json.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "712020:ec2b01dc-3023-46c8-b8b0-b55fa31c1a8c"
+      responses:
+        "200":
+          description: Профиль сотрудника
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeProfile"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/employee/{id}/analytics:
+    get:
+      tags: [Predicta]
+      summary: Экран 3 — карточка сотрудника + AI
+      description: |
+        Прогноз Go + инсайт GigaChat + задачи сотрудника + контекст чата.
+        `id` — значение из config/employees.json (Jira accountId или internal id).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "712020:xxxxxxxx"
+      responses:
+        "200":
+          description: Аналитика сотрудника
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeAnalytics"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/tasks/create:
+    post:
+      tags: [Predicta]
+      summary: Создать задачу с проверкой загрузки (AI)
+      description: |
+        Менеджер указывает исполнителя. Если сотрудник перегружен — задача **не создаётся**,
+        AI возвращает предупреждение и `suggested_assignee_id` альтернативного исполнителя.
+        Повторите запрос с `assignee_id` рекомендованного сотрудника или передайте `"force": true`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+            example:
+              title: "Новая фича API"
+              description: "Добавить endpoint"
+              assignee_id: "712020:ec2b01dc-3023-46c8-b8b0-b55fa31c1a8c"
+      responses:
+        "200":
+          description: Результат (создано или AI-отказ)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateTaskResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/tasks/reassign:
+    post:
+      tags: [Predicta]
+      summary: Экран 4 — переназначить задачу
+      description: Меняет assignee в Jira и возвращает обновлённый прогноз проекта.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReassignRequest"
+            example:
+              task_id: "HP-42"
+              new_executor_id: "712020:yyyyyyyy"
+      responses:
+        "200":
+          description: Задача переназначена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReassignResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/integrations/jira/me:
+    get:
+      tags: [Jira]
+      summary: Текущий пользователь Jira (проверка токена)
+      responses:
+        "200":
+          description: Jira user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JiraUser"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/integrations/jira/projects:
+    get:
+      tags: [Jira]
+      summary: Список проектов Jira (выбор JIRA_PROJECT_KEY)
+      responses:
+        "200":
+          description: Проекты
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JiraProject"
+        "502":
+          $ref: "#/components/responses/Error"
+
+  /api/integrations/jira/project-key:
+    get:
+      tags: [Jira]
+      summary: Определить project key (из env или задач спринта)
+      responses:
+        "200":
+          description: Ключ проекта
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_key:
+                    type: string
+                    example: DEMO
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /api/integrations/jira/users:
+    get:
+      tags: [Jira]
+      summary: Assignable users проекта (для employees.json)
+      parameters:
+        - name: project
+          in: query
+          schema:
+            type: string
+          description: Jira project key (по умолчанию из JIRA_PROJECT_KEY)
+          example: HP
+      responses:
+        "200":
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JiraUser"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/integrations/jira/sprint:
+    get:
+      tags: [Jira]
+      summary: Текущий спринт
+      responses:
+        "200":
+          description: Метаданные спринта
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JiraSprint"
+        "500":
+          $ref: "#/components/responses/Error"
+
+  /api/integrations/jira/tasks:
+    get:
+      tags: [Jira]
+      summary: Задачи спринта (raw из Jira)
+      parameters:
+        - name: sprint_id
+          in: query
+          schema:
+            type: string
+          description: ID спринта (опционально)
+      responses:
+        "200":
+          description: Задачи
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+        "500":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT из POST /api/auth/login
+
+  responses:
+    Error:
+      description: Ошибка
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    RegisterManagerRequest:
+      type: object
+      required: [first_name, last_name, email, password, telegram_nick, phone]
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        telegram_nick:
+          type: string
+          example: "@dic0ntr0L"
+        phone:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+          description: URL аватара (опционально; иначе из Jira при GET /api/auth/me)
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+
+    ManagerProfile:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        telegram_nick:
+          type: string
+        phone:
+          type: string
+        subordinates_count:
+          type: integer
+          description: Число сотрудников в config/employees.json
+        avatar_url:
+          type: string
+          description: Аватар Jira-аккаунта из .env
+        jira_display_name:
+          type: string
+        jira_email:
+          type: string
+
+    ProjectStatus:
+      type: object
+      properties:
+        sprint_name:
+          type: string
+          example: "Спринт №5"
+        completion_pct:
+          type: number
+          format: double
+          example: 60
+        delay_days:
+          type: integer
+          example: 3
+        is_at_risk:
+          type: boolean
+          example: true
+        risk_message:
+          type: string
+          example: "Спринт №5. Риск срыва дедлайна бэкенда на 3 дн."
+        ai_advice:
+          type: string
+          description: AI-совет менеджеру как успеть к дедлайну (3–4 предложения)
+          example: "Перераспределите 2 задачи с перегруженного разработчика на Medved. Закройте scope — отложите HP-15. Проведите daily с фокусом на блокеры."
+        track_name:
+          type: string
+          example: бэкенда
+        days_remaining:
+          type: integer
+          example: 3
+
+    EmployeeVelocity:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        done_count:
+          type: integer
+        total_count:
+          type: integer
+        health:
+          type: string
+          enum: [good, normal, bad]
+          description: good — 0–1 задача, normal — 2–3, bad — 4+ или перегруз
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Jira issue key
+        title:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done]
+
+    EmployeeProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Jira account_id
+        name:
+          type: string
+        role:
+          type: string
+        telegram_nick:
+          type: string
+        avatar_url:
+          type: string
+          description: URL фото профиля из Jira (Gravatar или инициалы Atlassian)
+        done_count:
+          type: integer
+        total_count:
+          type: integer
+        remaining_count:
+          type: integer
+        health:
+          type: string
+          enum: [good, normal, bad]
+          description: good — 0–1 задача, normal — 2–3, bad — 4+ или перегруз
+        ai_insight:
+          type: string
+          description: AI-вердикт и советы менеджеру (3–4 предложения)
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+
+    CreateTaskRequest:
+      type: object
+      required: [title, assignee_id]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignee_id:
+          type: string
+          description: Jira account_id исполнителя
+        force:
+          type: boolean
+          description: Создать задачу даже если AI считает исполнителя перегруженным
+
+    CreateTaskResponse:
+      type: object
+      properties:
+        created:
+          type: boolean
+        approved:
+          type: boolean
+        task_id:
+          type: string
+        task_title:
+          type: string
+        assignee_id:
+          type: string
+        assignee_name:
+          type: string
+        suggested_assignee_id:
+          type: string
+        suggested_assignee_name:
+          type: string
+        ai_insight:
+          type: string
+
+    EmployeeAnalytics:
+      type: object
+      properties:
+        employee_id:
+          type: string
+        employee_name:
+          type: string
+        role:
+          type: string
+        forecast_days_to_complete:
+          type: integer
+        sprint_days_left:
+          type: integer
+        delay_days:
+          type: integer
+        ai_insight:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+
+    ReassignRequest:
+      type: object
+      required: [task_id, new_executor_id]
+      properties:
+        task_id:
+          type: string
+          description: Jira issue key (HP-123)
+        new_executor_id:
+          type: string
+          description: Jira accountId нового исполнителя
+
+    ReassignResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        project_status:
+          $ref: "#/components/schemas/ProjectStatus"
+
+    JiraProject:
+      type: object
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        name:
+          type: string
+
+    JiraUser:
+      type: object
+      properties:
+        account_id:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+
+    JiraSprint:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        state:
+          type: string
+        start_date:
+          type: string
+        end_date:
+          type: string

@@ -3,8 +3,9 @@ package entity
 type VelocityHealth string
 
 const (
-	VelocityHealthGood VelocityHealth = "good"
-	VelocityHealthBad  VelocityHealth = "bad"
+	VelocityHealthGood   VelocityHealth = "good"
+	VelocityHealthNormal VelocityHealth = "normal"
+	VelocityHealthBad    VelocityHealth = "bad"
 )
 
 type EmployeeVelocity struct {
@@ -20,6 +21,7 @@ type ProjectStatus struct {
 	DelayDays     int
 	IsAtRisk      bool
 	RiskMessage   string
+	AIAdvice      string
 	TrackName     string
 	DaysRemaining int
 }

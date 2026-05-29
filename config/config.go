@@ -14,7 +14,7 @@ type Config struct {
 
 	PostgresDSN string
 
-	TaskTrackerProvider string // jira | linear | mock
+	TaskTrackerProvider string // jira
 	JiraBaseURL         string
 	JiraEmail           string
 	JiraAPIToken        string
@@ -34,10 +34,13 @@ type Config struct {
 	GigaChatScope        string
 
 	SprintDaysRemaining int
-	DemoMode            bool
 
 	EmployeesFile string
 	TeamID        string
+	OpenAPIPath   string
+
+	JWTSecret   string
+	ManagerFile string
 }
 
 func Load() (*Config, error) {
@@ -46,7 +49,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		HTTPPort:             getenv("HTTP_PORT", "8080"),
 		PostgresDSN:          os.Getenv("POSTGRES_DSN"),
-		TaskTrackerProvider:  getenv("TASK_TRACKER_PROVIDER", "mock"),
+		TaskTrackerProvider:  getenv("TASK_TRACKER_PROVIDER", "jira"),
 		JiraBaseURL:          os.Getenv("JIRA_BASE_URL"),
 		JiraEmail:            os.Getenv("JIRA_EMAIL"),
 		JiraAPIToken:         firstEnv("JIRA_API_TOKEN", "JIRA_API"),
@@ -62,9 +65,11 @@ func Load() (*Config, error) {
 		GigaChatClientSecret: os.Getenv("GIGACHAT_CLIENT_SECRET"),
 		GigaChatScope:        getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS"),
 		SprintDaysRemaining:  getenvInt("SPRINT_DAYS_REMAINING", 3),
-		DemoMode:             getenvBool("DEMO_MODE", true),
 		EmployeesFile:        getenv("EMPLOYEES_FILE", "config/employees.json"),
 		TeamID:               getenv("TEAM_ID", "backend"),
+		OpenAPIPath:          getenv("OPENAPI_PATH", "api/openapi.yaml"),
+		JWTSecret:            getenv("JWT_SECRET", "predicta-dev-secret-change-me"),
+		ManagerFile:          getenv("MANAGER_FILE", "data/manager.json"),
 	}
 
 	return cfg, nil
@@ -90,10 +95,20 @@ func (c *Config) JiraEnabled() bool {
 	return c.TaskTrackerProvider == "jira"
 }
 
-func (c *Config) ValidateJira() error {
-	if !c.JiraEnabled() {
-		return nil
+func (c *Config) Validate() error {
+	if err := c.ValidateJira(); err != nil {
+		return err
 	}
+	if c.GigaChatAuthKey == "" {
+		return fmt.Errorf("GIGACHAT_AUTH_KEY is required")
+	}
+	if c.EmployeesFile == "" {
+		return fmt.Errorf("EMPLOYEES_FILE is required")
+	}
+	return nil
+}
+
+func (c *Config) ValidateJira() error {
 	if c.JiraBaseURL == "" {
 		return fmt.Errorf("JIRA_BASE_URL is required")
 	}
@@ -119,18 +134,6 @@ func getenvInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
-}
-
-func getenvBool(key string, fallback bool) bool {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	b, err := strconv.ParseBool(v)
-	if err != nil {
-		return fallback
-	}
-	return b
 }
 
 func (c *Config) Addr() string {

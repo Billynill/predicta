@@ -12,6 +12,7 @@ func mapProjectStatus(s entity.ProjectStatus) dto.ProjectStatusResponse {
 		DelayDays:     s.DelayDays,
 		IsAtRisk:      s.IsAtRisk,
 		RiskMessage:   s.RiskMessage,
+		AIAdvice:      s.AIAdvice,
 		TrackName:     s.TrackName,
 		DaysRemaining: s.DaysRemaining,
 	}
